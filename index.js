@@ -19,6 +19,8 @@ function operation() {
         choices: [
           "Criar Conta",
           "Consultar Saldo",
+          "Adicionar Limite",
+          "Cartão de Crédito",
           "Depositar",
           "Transferir",
           "Sacar",
@@ -38,12 +40,20 @@ function operation() {
       if (action === "Consultar Saldo") {
         getAccountBalance();
       }
+      if (action === "Adicionar Limite") {
+        addValuetoCreditCard();
+      }
+
+      if (action === "Cartão de Crédito") {
+        creditCard();
+      }
       if (action === "Transferir") {
         transfer();
       }
       if (action === "Sacar") {
         withdraw();
       }
+
       if (action === "Sair") {
         console.log(chalk.bgBlue.black("Obrigado por usar o nosso banco!"));
         process.exit();
@@ -262,73 +272,195 @@ function removeAmount(accountName, amount) {
   operation();
 }
 
-
 // aqui vamos fazer para realizar a transferencia de saldo para contas
 
 function transfer() {
-    inquirer.prompt([
-        {
-            name: 'accountName',
-            message: 'Qual o nome da sua conta?',
-        }
-    ]).then((answer) => {
-        const accountName = answer['accountName'];
+  inquirer
+    .prompt([
+      {
+        name: "accountName",
+        message: "Qual o nome da sua conta?",
+        choices: ['Voltar']
+      },
+    ])
+    .then((answer) => {
+      const accountName = answer["accountName"];
 
-        if (!checkAccount(accountName)) {
+      if(accountName === 'Voltar'){
+        return operation();
+      }
+      if (!checkAccount(accountName)) {
+        return transfer();
+      }
+
+      inquirer
+        .prompt([
+          {
+            name: "amount",
+            message: "Qual o valor da transferência?",
+          },
+          {
+            name: "destinationAccount",
+            message: "Qual o nome da conta de destino?",
+          },
+        ])
+        .then((answer) => {
+          const amount = answer["amount"];
+          const destinationAccount = answer["destinationAccount"];
+
+          if (!checkAccount(destinationAccount)) {
+            console.log(chalk.bgRed.black("Conta de destino não encontrada!"));
             return transfer();
-        }
+          }
 
-        inquirer.prompt([
-            {
-                name: 'amount',
-                message: 'Qual o valor da transferência?',
-            },
-            {
-                name: 'destinationAccount',
-                message: 'Qual o nome da conta de destino?',
-            }
-        ]).then((answer) => {
-            const amount = answer['amount'];
-            const destinationAccount = answer['destinationAccount'];
-
-            if (!checkAccount(destinationAccount)) {
-                console.log(chalk.bgRed.black('Conta de destino não encontrada!'));
-                return transfer();
-            }
-
-            transferAmount(accountName, destinationAccount, amount);
-            console.log(chalk.green(`Transferência de ${amount} realizada com sucesso!`));
-            operation();
-        }).catch(err => console.log(err));
-    }).catch(err => console.log(err));
+          transferAmount(accountName, destinationAccount, amount);
+          console.log(
+            chalk.green(`Transferência de ${amount} realizada com sucesso!`)
+          );
+          operation();
+        })
+        .catch((err) => console.log(err));
+    })
+    .catch((err) => console.log(err));
 }
 
 function transferAmount(accountName, destinationAccount, amount) {
-    const accountData = getAccount(accountName);
-    const destinationAccountData = getAccount(destinationAccount);
+  const accountData = getAccount(accountName);
+  const destinationAccountData = getAccount(destinationAccount);
 
-    if (!amount) {
-        console.log(chalk.bgRed.black('Valor inválido!'));
-        return transfer();
+  if (!amount) {
+    console.log(chalk.bgRed.black("Valor inválido!"));
+    return transfer();
+  }
+
+  if (accountData.balance < amount) {
+    console.log(chalk.bgRed.black("Saldo insuficiente!"));
+    return transfer();
+  }
+
+  accountData.balance = parseFloat(accountData.balance) - parseFloat(amount);
+  destinationAccountData.balance =
+    parseFloat(destinationAccountData.balance) + parseFloat(amount);
+
+  fs.writeFileSync(
+    `accounts/${accountName}.json`,
+    JSON.stringify(accountData),
+    function (err) {
+      if (err) {
+        console.log(err);
+      }
     }
+  );
 
-    if (accountData.balance < amount) {
-        console.log(chalk.bgRed.black('Saldo insuficiente!'));
-        return transfer();
+  fs.writeFileSync(
+    `accounts/${destinationAccount}.json`,
+    JSON.stringify(destinationAccountData),
+    function (err) {
+      if (err) {
+        console.log(err);
+      }
     }
+  );
+}
 
-    accountData.balance = parseFloat(accountData.balance) - parseFloat(amount);
-    destinationAccountData.balance = parseFloat(destinationAccountData.balance) + parseFloat(amount);
+// adicionando cartão de crédito =
 
-    fs.writeFileSync(`accounts/${accountName}.json`, JSON.stringify(accountData), function (err) {
-        if (err) {
-            console.log(err);
+function creditCard() {
+  inquirer
+    .prompt([
+      {
+        name: "accountName",
+        message: "Qual o nome da sua conta?",
+        choices: ['Voltar']
+      },
+    ])
+    .then((answer) => {
+      const accountName = answer["accountName"];
+
+      if(accountName === 'Voltar'){
+        return operation();
+      }
+
+      if (!checkAccount(accountName)) {
+        console.log(chalk.bgRed.black("Conta não encontrada!"));
+        return operation();
+      }
+
+      const accountData = getAccount(accountName);
+
+      if (accountData.creditCard && accountData.creditCard.active) {
+        console.log(chalk.bgYellow.black("Cartão de crédito já existente!"));
+        return operation();
+      }
+
+      accountData.creditCard = {
+        active: true,
+        creditValue: 0
+      };
+
+      fs.writeFileSync(
+        `accounts/${accountName}.json`,
+        JSON.stringify(accountData, null, 2),
+        function (err) {
+          console.log(err);
         }
-    });
+      );
+      console.log(chalk.green("Cartão de crédito adicionado com sucesso!"));
+      operation();
+    })
+    .catch((err) => console.log(err));
+}
 
-    fs.writeFileSync(`accounts/${destinationAccount}.json`, JSON.stringify(destinationAccountData), function (err) {
-        if (err) {
-            console.log(err);
-        }
-    });
+function addValuetoCreditCard() {
+  inquirer
+    .prompt([
+      {
+        name: "accountName",
+        message: "Qual o nome da sua conta?",
+      },
+    ])
+    .then((answer) => {
+      const accountName = answer["accountName"];
+      const accountData = getAccount(accountName);
+
+      if (!accountData) {
+        console.log(chalk.bgRed.black("Conta não encontrada!"));
+        return operation();
+      }
+
+      if (!accountData.creditCard || !accountData.creditCard.active) {
+        console.log(chalk.bgYellow.black("Essa conta não possui um cartão de crédito"));
+        return operation();
+      }
+
+      inquirer
+        .prompt([
+          {
+            name: "amount",
+            message: "Qual o valor que deseja adicionar ao cartão de crédito?",
+          },
+        ])
+        .then((answer) => {
+          const amount = answer["amount"];
+
+          if (!amount) {
+            console.log(chalk.bgRed.black("Valor inválido!"));
+            return addValuetoCreditCard();
+          }
+
+          accountData.creditCard.creditValue = parseFloat(amount) + parseFloat(accountData.creditCard.creditValue);
+
+          fs.writeFileSync(
+            `accounts/${accountName}.json`,
+            JSON.stringify(accountData, null, 2),
+            function (err) {
+              console.log(err);
+            }
+          );
+          console.log(chalk.green(`Crédito aprovado no valor de: ${amount}`));
+          operation();
+        })
+        .catch((err) => console.log(err));
+    })
+    .catch((err) => console.log(err));
 }
