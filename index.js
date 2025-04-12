@@ -25,6 +25,7 @@ function operation() {
           "Transferir",
           "Sacar",
           "Sair",
+          "Excluir Conta",
         ],
       },
     ])
@@ -50,6 +51,7 @@ function operation() {
       if (action === "Transferir") {
         transfer();
       }
+  
       if (action === "Sacar") {
         withdraw();
       }
@@ -57,6 +59,9 @@ function operation() {
       if (action === "Sair") {
         console.log(chalk.bgBlue.black("Obrigado por usar o nosso banco!"));
         process.exit();
+      }
+      if( action === "Excluir Conta") {
+        removeAccount();
       }
     })
     .catch((err) => console.log(err, "Algo deu errado!"));
@@ -463,4 +468,40 @@ function addValuetoCreditCard() {
         .catch((err) => console.log(err));
     })
     .catch((err) => console.log(err));
+}
+
+async function removeAccount() {
+  try {
+    const { accountName } = await inquirer.prompt([
+      {
+        name: "accountName",
+        message: "Qual o nome da sua conta?"
+      }
+    ]);
+
+    if (!accountName) {
+      console.log(chalk.bgRed.black("Nome inválido!"));
+      return removeAccount();
+    }
+
+    const { confirm } = await inquirer.prompt([
+      {
+        name: "confirm",
+        type: "list",
+        message: "Você tem certeza que deseja excluir a conta?",
+        choices: ['s', 'n']
+      }
+    ]);
+
+    if (confirm === 's') {
+      await fs.promises.unlink(`accounts/${accountName}.json`);
+      console.log(chalk.bgRed.black("Conta excluída com sucesso!"));
+    } else {
+      console.log(chalk.bgGreen.black("Operação cancelada! Obrigado por continuar com a gente!"));
+    }
+
+    operation();
+  } catch (err) {
+    console.log("Algo deu errado! ", err);
+  }
 }
